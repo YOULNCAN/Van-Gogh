@@ -27,6 +27,8 @@
   const playButton = $('play-button');
   const replayButton = $('replay-button');
   const restartArtButton = $('restart-art');
+  const previousArtButton = $('previous-art');
+  const nextArtButton = $('next-art');
   const musicButton = $('music-button');
   const searchInput = $('catalog-search');
   const loadMoreButton = $('load-more');
@@ -35,6 +37,7 @@
   const duration = 16;
   const isTouchDevice = matchMedia('(pointer:coarse)').matches;
   const pixelRatio = Math.min(devicePixelRatio || 1, isTouchDevice ? 1.25 : 1.75);
+  const constrainedDevice = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4;
   const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let index = 0, progress = 0, playing = false, ready = false, token = 0, lastFrame = 0, dirty = true, currentImageRatio = 1;
   let entered = false, visibleCount = 36;
@@ -114,8 +117,16 @@
         uCover:gl.getUniformLocation(program,'uCover')};
     } catch { return null; }
   }
-  const renderer = prefersReducedMotion ? null : makeRenderer();
-  canvas.addEventListener('webglcontextlost', event => { event.preventDefault(); showStatic(); });
+  let renderer = prefersReducedMotion ? null : makeRenderer();
+  canvas.addEventListener('webglcontextlost', event => {
+    event.preventDefault();
+    renderer = null;
+    showStatic();
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    renderer = prefersReducedMotion ? null : makeRenderer();
+    if (renderer) select(index);
+  });
 
   function random(seed) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
   function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
@@ -129,7 +140,7 @@
     const context = sample.getContext('2d', {willReadFrequently:true});
     context.drawImage(thumb, 0, 0, sample.width, sample.height);
     const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
-    const maximum = isTouchDevice ? 12000 : 50000;
+    const maximum = isTouchDevice ? 12000 : constrainedDevice ? 18000 : 32000;
     const columns = Math.max(1, Math.round(Math.sqrt(maximum * sample.width / sample.height)));
     const rows = Math.max(1, Math.round(maximum / columns));
     const count = columns * rows;
@@ -169,6 +180,7 @@
     canvas.height = Math.max(1, Math.round(board.clientHeight * pixelRatio));
     renderer.gl.viewport(0, 0, canvas.width, canvas.height);
     dirty = true;
+    requestTick();
   }
 
   function render() {
@@ -190,14 +202,16 @@
   }
 
   function updateUi() {
-    playButton.textContent = playing ? '暂停' : progress >= 1 ? '再播放' : '播放';
-    playButton.setAttribute('aria-label', playing ? '暂停动画' : progress >= 1 ? '重新播放动画' : '播放动画');
+    const label = playing ? '暂停' : progress >= 1 ? '再播放' : '播放';
+    const ariaLabel = playing ? '暂停动画' : progress >= 1 ? '重新播放动画' : '播放动画';
+    if (playButton.textContent !== label) playButton.textContent = label;
+    if (playButton.getAttribute('aria-label') !== ariaLabel) playButton.setAttribute('aria-label', ariaLabel);
   }
   function updateMusicUi() {
     const label = musicError ? '音乐不可用' : !musicStarted ? '开启音乐' : musicEnabled ? '音乐开启' : '已静音';
     musicButton.textContent = `♫ ${label}`;
     musicButton.setAttribute('aria-label', label);
-    musicButton.setAttribute('aria-pressed', String(musicStarted && musicEnabled));
+    musicButton.setAttribute('aria-pressed', String(musicStarted && musicEnabled && !musicError));
   }
   function startMusic() {
     if (musicStarted || !musicEnabled || musicError) return;
@@ -221,8 +235,12 @@
     loadScript('catalog.js').then(() => {
       artworks = featured.concat((window.VG_CATALOG || []).filter(item => !featuredCodes.has(item.f)));
       renderList();
+      previousArtButton.disabled = false;
+      nextArtButton.disabled = false;
     }).catch(() => {
       $('catalog-count').textContent = '完整目录暂时无法加载，请刷新页面重试';
+      previousArtButton.disabled = false;
+      nextArtButton.disabled = false;
     });
   }
 
@@ -303,6 +321,7 @@
         $('load-message').hidden = true;
         resize();
         render();
+        requestTick();
       };
       if (!isLocalFile) { activateParticles(original); return; }
       const sample = item.key ? window.PARTICLE_THUMBS?.[item.key] : window.CATALOG_THUMBS?.[item.thumbKey];
@@ -375,6 +394,8 @@
   searchInput.addEventListener('input', () => { visibleCount = 36; renderList(); });
   loadMoreButton.addEventListener('click', () => { visibleCount += 36; renderList(); });
   renderList();
+  previousArtButton.disabled = true;
+  nextArtButton.disabled = true;
   galleryToggle.addEventListener('click', () => {
     sidebar.hidden = false;
     backdrop.hidden = false;
@@ -393,6 +414,7 @@
     lastFrame = 0;
     updateUi();
     dirty = true;
+    requestTick();
     closeGallery();
   });
   function replayCurrent(closeMenu = false) {
@@ -403,12 +425,13 @@
     lastFrame = 0;
     updateUi();
     dirty = true;
+    requestTick();
     if (closeMenu) closeGallery();
   }
   replayButton.addEventListener('click', () => replayCurrent(true));
   restartArtButton.addEventListener('click', () => replayCurrent());
-  $('previous-art').addEventListener('click', () => { startMusic(); select((index - 1 + artworks.length) % artworks.length); });
-  $('next-art').addEventListener('click', () => { startMusic(); select((index + 1) % artworks.length); });
+  previousArtButton.addEventListener('click', () => { startMusic(); select((index - 1 + artworks.length) % artworks.length); });
+  nextArtButton.addEventListener('click', () => { startMusic(); select((index + 1) % artworks.length); });
   audio.addEventListener('error', () => { musicError=true; updateMusicUi(); });
   musicButton.addEventListener('click', () => {
     if (musicError) return;
@@ -437,6 +460,7 @@
       lastFrame = 0;
       dirty = true;
       updateUi();
+      requestTick();
     }
     if (event.detail === 0) galleryToggle.focus({preventScroll:true});
   });
@@ -445,17 +469,27 @@
     targetX = clamp((event.clientX / innerWidth - .5) * 2, -1, 1);
     targetY = clamp((event.clientY / innerHeight - .5) * 2, -1, 1);
     if (event.pointerType === 'touch') lastTouch = Date.now();
+    requestTick();
   }, {passive:true});
   window.addEventListener('deviceorientation', event => {
     if (event.gamma == null || event.beta == null || Date.now() - lastTouch < 1500) return;
     if (!orientationOrigin) orientationOrigin = {gamma:event.gamma, beta:event.beta};
     targetX = clamp((event.gamma - orientationOrigin.gamma) / 35, -1, 1);
     targetY = clamp((event.beta - orientationOrigin.beta) / 35, -1, 1);
+    requestTick();
   }, {passive:true});
   if ('ResizeObserver' in window) new ResizeObserver(resize).observe(board);
   else window.addEventListener('resize', resize);
 
+  let framePending = false;
+  function requestTick() {
+    if (framePending) return;
+    framePending = true;
+    requestAnimationFrame(tick);
+  }
+
   function tick(timestamp) {
+    framePending = false;
     if (ready && playing && renderer) {
       if (lastFrame) progress = Math.min(1, progress + (timestamp - lastFrame) / (duration * 1000));
       if (progress >= 1) playing = false;
@@ -470,9 +504,8 @@
       dirty = true;
     }
     if (ready && dirty) { render(); dirty=false; }
-    requestAnimationFrame(tick);
+    if ((ready && playing && renderer) || Math.abs(targetX - pointerX) + Math.abs(targetY - pointerY) > .002) requestTick();
   }
   updateMusicUi();
   select(0);
-  requestAnimationFrame(tick);
 })();
