@@ -33,8 +33,10 @@
   const audio = $('ambient-audio');
   const isLocalFile = location.protocol === 'file:';
   const duration = 16;
+  const isTouchDevice = matchMedia('(pointer:coarse)').matches;
+  const pixelRatio = Math.min(devicePixelRatio || 1, isTouchDevice ? 1.25 : 1.75);
   const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let index = 0, progress = 0, playing = false, ready = false, token = 0, lastFrame = 0, dirty = true;
+  let index = 0, progress = 0, playing = false, ready = false, token = 0, lastFrame = 0, dirty = true, currentImageRatio = 1;
   let entered = false, visibleCount = 36;
   let musicStarted = false, musicEnabled = true, musicError = false;
   let pointerX = 0, pointerY = 0, targetX = 0, targetY = 0, lastTouch = 0, orientationOrigin = null;
@@ -48,6 +50,7 @@
     uniform float uPixelRatio;
     uniform float uFade;
     uniform vec2 uPointer;
+    uniform vec2 uCover;
     varying vec3 vColor;
     varying float vAlpha;
     void main() {
@@ -58,7 +61,7 @@
       point.y += (1.0 - ease) * cos(uProgress * 4.0 + aDelay * 25.0) * 0.04;
       point.xy += uPointer * point.z * 0.10;
       float perspective = 1.0 / (1.0 + point.z * 0.22);
-      gl_Position = vec4(point.xy * perspective, 0.0, 1.0);
+      gl_Position = vec4(point.xy * perspective * uCover, 0.0, 1.0);
       gl_PointSize = mix(4.0, 4.4, ease) * uPixelRatio * perspective;
       vColor = min(vec3(1.0), aColor * 1.22);
       vAlpha = (0.75 + 0.25 * ease) * (1.0 - uFade);
@@ -107,7 +110,8 @@
         uProgress:gl.getUniformLocation(program,'uProgress'),
         uPixelRatio:gl.getUniformLocation(program,'uPixelRatio'),
         uFade:gl.getUniformLocation(program,'uFade'),
-        uPointer:gl.getUniformLocation(program,'uPointer')};
+        uPointer:gl.getUniformLocation(program,'uPointer'),
+        uCover:gl.getUniformLocation(program,'uCover')};
     } catch { return null; }
   }
   const renderer = prefersReducedMotion ? null : makeRenderer();
@@ -125,7 +129,7 @@
     const context = sample.getContext('2d', {willReadFrequently:true});
     context.drawImage(thumb, 0, 0, sample.width, sample.height);
     const pixels = context.getImageData(0, 0, sample.width, sample.height).data;
-    const maximum = innerWidth < 650 ? 18000 : 50000;
+    const maximum = isTouchDevice ? 12000 : 50000;
     const columns = Math.max(1, Math.round(Math.sqrt(maximum * sample.width / sample.height)));
     const rows = Math.max(1, Math.round(maximum / columns));
     const count = columns * rows;
@@ -161,9 +165,8 @@
 
   function resize() {
     if (!renderer || !ready) return;
-    const ratio = Math.min(devicePixelRatio || 1, 1.75);
-    canvas.width = Math.max(1, Math.round(board.clientWidth * ratio));
-    canvas.height = Math.max(1, Math.round(board.clientHeight * ratio));
+    canvas.width = Math.max(1, Math.round(board.clientWidth * pixelRatio));
+    canvas.height = Math.max(1, Math.round(board.clientHeight * pixelRatio));
     renderer.gl.viewport(0, 0, canvas.width, canvas.height);
     dirty = true;
   }
@@ -178,9 +181,11 @@
     gl.clear(gl.COLOR_BUFFER_BIT);
     if (reveal > 0.999) return;
     gl.uniform1f(renderer.uProgress, progress);
-    gl.uniform1f(renderer.uPixelRatio, Math.min(devicePixelRatio || 1, 1.75));
+    gl.uniform1f(renderer.uPixelRatio, pixelRatio);
     gl.uniform1f(renderer.uFade, reveal);
     gl.uniform2f(renderer.uPointer, pointerX, pointerY);
+    const boardRatio = board.clientWidth / board.clientHeight || 1;
+    gl.uniform2f(renderer.uCover, Math.max(1, currentImageRatio / boardRatio), Math.max(1, boardRatio / currentImageRatio));
     gl.drawArrays(gl.POINTS, 0, renderer.count);
   }
 
@@ -284,6 +289,7 @@
     const original = new Image();
     original.onload = () => {
       if (currentToken !== token) return;
+      currentImageRatio = original.naturalWidth / original.naturalHeight;
       board.style.setProperty('--ratio', String(original.naturalWidth / original.naturalHeight));
       wrap.style.setProperty('--bg-image', `url("${original.src}")`);
       finishedImage.src = original.src;
