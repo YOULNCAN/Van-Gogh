@@ -14,7 +14,7 @@
     featured[i].catalogSource = `https://vangoghworldwide.org/artwork/${code}`;
   });
   const featuredCodes = new Set(featured.map(item => item.f));
-  const artworks = featured.concat((window.VG_CATALOG || []).filter(item => !featuredCodes.has(item.f)));
+  let artworks = featured.slice();
   const $ = id => document.getElementById(id);
   const canvas = $('painting-canvas');
   const finishedImage = $('finished-image');
@@ -31,6 +31,7 @@
   const searchInput = $('catalog-search');
   const loadMoreButton = $('load-more');
   const audio = $('ambient-audio');
+  const isLocalFile = location.protocol === 'file:';
   const duration = 16;
   const prefersReducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let index = 0, progress = 0, playing = false, ready = false, token = 0, lastFrame = 0, dirty = true;
@@ -200,6 +201,26 @@
     if (attempt?.then) attempt.then(() => { musicStarted=true; updateMusicUi(); }).catch(updateMusicUi);
   }
 
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.append(script);
+    });
+  }
+
+  function loadCatalog() {
+    $('catalog-count').textContent = '正在加载完整目录…';
+    loadScript('catalog.js').then(() => {
+      artworks = featured.concat((window.VG_CATALOG || []).filter(item => !featuredCodes.has(item.f)));
+      renderList();
+    }).catch(() => {
+      $('catalog-count').textContent = '完整目录暂时无法加载，请刷新页面重试';
+    });
+  }
+
   function showStatic() {
     ready = true;
     playing = false;
@@ -277,7 +298,8 @@
         resize();
         render();
       };
-      const sample = item.key ? window.PARTICLE_THUMBS[item.key] : window.CATALOG_THUMBS?.[item.thumbKey];
+      if (!isLocalFile) { activateParticles(original); return; }
+      const sample = item.key ? window.PARTICLE_THUMBS?.[item.key] : window.CATALOG_THUMBS?.[item.thumbKey];
       if (sample) {
         const thumb = new Image();
         thumb.onload = () => activateParticles(thumb);
@@ -393,6 +415,12 @@
   $('enter-button').addEventListener('click', event => {
     entered = true;
     startMusic();
+    loadCatalog();
+    if (isLocalFile) {
+      Promise.all([loadScript('particle-thumbs.js'), loadScript('catalog-thumbs.js')])
+        .then(() => select(index))
+        .catch(() => showStatic());
+    }
     $('welcome').hidden = true;
     galleryToggle.tabIndex = 0;
     musicButton.tabIndex = 0;

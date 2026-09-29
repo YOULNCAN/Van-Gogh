@@ -24,12 +24,9 @@
     <nav class="art-nav" aria-label="画作切换"><button id="previous-art" type="button" aria-label="上一幅画" title="上一幅画">↑</button><button id="restart-art" type="button" aria-label="重播当前画的粒子动画" title="重播当前画">↶</button><button id="next-art" type="button" aria-label="下一幅画" title="下一幅画">↓</button></nav>
     <div id="sidebar-backdrop" class="backdrop" hidden></div><aside id="sidebar" class="sidebar" aria-label="作品与播放菜单" aria-hidden="true" hidden><div class="side-top"><h2 class="side-title">作品与播放</h2><button id="close-gallery" class="close-button" type="button" aria-label="关闭菜单">×</button></div><div class="playback"><p class="playback-title">播放控制 · 0.75×</p><div class="playback-actions"><button id="play-button" class="menu-button" type="button">播放</button><button id="replay-button" class="menu-button secondary" type="button">从头再看</button></div></div><p class="side-sub">梵高绘画目录 / PAINTINGS</p><input id="catalog-search" class="catalog-search" type="search" placeholder="搜索标题、年代或目录编号" aria-label="搜索绘画"><p id="catalog-count" class="catalog-count" aria-live="polite"></p><div id="art-list" class="art-list"></div><button id="load-more" class="menu-button secondary load-more" type="button" hidden>显示更多作品</button><div class="side-divider"></div><h3 id="detail-name" class="detail-name"></h3><p id="detail-en" class="detail-en"></p><dl class="facts"><dt>年代</dt><dd id="detail-year"></dd><dt>馆藏</dt><dd id="detail-museum"></dd><dt>编号</dt><dd id="detail-code"></dd></dl><p class="source">图像来源：<a id="detail-source" target="_blank" rel="noopener noreferrer"></a></p><p class="source">作品资料：<a id="detail-catalog-source" target="_blank" rel="noopener noreferrer">Van Gogh Worldwide</a></p><p class="interpretation">粒子汇聚与画面显现是基于原作图像的视觉演绎，并非梵高真实的创作顺序。画作图片已随网站保存。</p></aside>
     <div id="welcome" class="welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title"><div class="welcome-card"><div class="welcome-icon" aria-hidden="true">♫</div><h1 id="welcome-title">戴上耳机，效果更佳</h1><p>让音乐与色彩一同展开。点击进入后，画作将开始汇聚，背景音乐也会随之播放。</p><button id="enter-button" class="enter-button" type="button">进入展厅</button><span class="welcome-note">可随时在右上角关闭音乐</span></div></div>
-    <audio id="ambient-audio" src="audio/van-gogh-ambient.mp3" preload="auto" loop></audio>
+    <audio id="ambient-audio" src="audio/van-gogh-ambient.mp3" preload="none" loop></audio>
   </main>
-  <script src="particle-thumbs.js"></script>
-  <script src="catalog.js"></script>
-  <script src="catalog-thumbs.js" defer></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
 
